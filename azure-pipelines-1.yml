@@ -51,13 +51,3 @@ stages:
           --dockerfile /workspace/Dockerfile \
           --destination=$(acrName)/$(imageRepository):$(tag)
       displayName: 'Build and push Docker image using Kaniko'
-
-    # Step 4: Azure login to ACR (Optional, if needed to authenticate)
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: $(dockerRegistryServiceConnection)
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          az acr login --name $(containerRegistry)
-      displayName: 'Login to Azure Container Registry'
