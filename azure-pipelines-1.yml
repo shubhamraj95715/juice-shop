@@ -5,13 +5,12 @@ resources:
 - repo: self
 
 variables:
-  # Container registry service connection established during pipeline creation
   dockerRegistryServiceConnection: 'fbaad1e8-a637-4341-b503-3a75bfc153a1'
   imageRepository: 'shubhamrajjuiceshop'
   containerRegistry: 'testacr1276.azurecr.io'
   tag: '$(Build.BuildId)'
   vmImageName: 'ubuntu-latest'
-  acrName: 'testacr1276.azurecr.io'  # Replace with your ACR name
+  acrName: 'testacr1276.azurecr.io'
 
 stages:
 - stage: Build
@@ -22,23 +21,27 @@ stages:
     pool:
       vmImage: $(vmImageName)
     steps:
-    
-    # Step 1: Generate Dockerfile dynamically for Java application
+
+    # Debugging step to check file structure
+    - script: |
+        ls -R $(Build.SourcesDirectory)
+      displayName: 'List files in source directory'
+
+    # Step 1: Manually compile and package the Java application
+    - script: |
+        mkdir -p target
+        javac -d target/ $(find . -name "*.java")  # Compile the Java files
+        jar cvf target/app.jar -C target/ .        # Package the compiled classes into a JAR
+      displayName: 'Manually compile and package Java application'
+
+    # Step 2: Generate Dockerfile dynamically for Java application
     - script: |
         echo "FROM openjdk:11-jre-slim" > $(Build.SourcesDirectory)/Dockerfile
         echo "WORKDIR /app" >> $(Build.SourcesDirectory)/Dockerfile
-        echo "COPY target/*.jar app.jar" >> $(Build.SourcesDirectory)/Dockerfile
+        echo "COPY target/app.jar app.jar" >> $(Build.SourcesDirectory)/Dockerfile
         echo "EXPOSE 8080" >> $(Build.SourcesDirectory)/Dockerfile
         echo "ENTRYPOINT [\"java\", \"-jar\", \"app.jar\"]" >> $(Build.SourcesDirectory)/Dockerfile
       displayName: 'Generate Dockerfile for Java app'
-
-    # Step 2: Build the application using Maven (for Java apps)
-    - task: Maven@3
-      inputs:
-        mavenPomFile: 'pom.xml'
-        goals: 'package'
-        options: '-DskipTests'
-      displayName: 'Build Java application'
 
     # Step 3: Run Kaniko to build and push the Docker image
     - script: |
