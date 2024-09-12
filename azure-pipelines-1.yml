@@ -1,0 +1,63 @@
+trigger:
+- master
+
+resources:
+- repo: self
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: 'fbaad1e8-a637-4341-b503-3a75bfc153a1'
+  imageRepository: 'shubhamrajjuiceshop'
+  containerRegistry: 'testacr1276.azurecr.io'
+  tag: '$(Build.BuildId)'
+  vmImageName: 'ubuntu-latest'
+  acrName: 'testacr1276.azurecr.io'  # Replace with your ACR name
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    
+    # Step 1: Generate Dockerfile dynamically for Java application
+    - script: |
+        echo "FROM openjdk:11-jre-slim" > $(Build.SourcesDirectory)/Dockerfile
+        echo "WORKDIR /app" >> $(Build.SourcesDirectory)/Dockerfile
+        echo "COPY target/*.jar app.jar" >> $(Build.SourcesDirectory)/Dockerfile
+        echo "EXPOSE 8080" >> $(Build.SourcesDirectory)/Dockerfile
+        echo "ENTRYPOINT [\"java\", \"-jar\", \"app.jar\"]" >> $(Build.SourcesDirectory)/Dockerfile
+      displayName: 'Generate Dockerfile for Java app'
+
+    # Step 2: Build the application using Maven (for Java apps)
+    - task: Maven@3
+      inputs:
+        mavenPomFile: 'pom.xml'
+        goals: 'package'
+        options: '-DskipTests'
+      displayName: 'Build Java application'
+
+    # Step 3: Run Kaniko to build and push the Docker image
+    - script: |
+        docker run \
+          -v $(Build.SourcesDirectory):/workspace \
+          -v /kaniko/.docker:/kaniko/.docker \
+          -e DOCKER_CONFIG=/kaniko/.docker \
+          gcr.io/kaniko-project/executor:latest \
+          --context /workspace \
+          --dockerfile /workspace/Dockerfile \
+          --destination=$(acrName)/$(imageRepository):$(tag)
+      displayName: 'Build and push Docker image using Kaniko'
+
+    # Step 4: Azure login to ACR (Optional, if needed to authenticate)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(dockerRegistryServiceConnection)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az acr login --name $(containerRegistry)
+      displayName: 'Login to Azure Container Registry'
